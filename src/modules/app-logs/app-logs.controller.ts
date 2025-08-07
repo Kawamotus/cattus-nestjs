@@ -9,12 +9,13 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { successResponse } from 'src/common/helpers/response.helper';
 
 @Controller('app-logs')
 export class AppLogsController {
   constructor(private readonly appLogsService: AppLogsService) {}
 
-  //TODO - adicionar HttpCode em todas as rotas de todos os módulos
+  //TODO - adicionar HttpCode em todas as rotas de todos os módulos - colocar os corretos, não OK em tudo
   @HttpCode(HttpStatus.OK)
   @Get()
   @ApiBearerAuth('jwt')
@@ -25,6 +26,11 @@ export class AppLogsController {
     @Query() paginationDTO: PaginationDTO,
     @CurrentUser() user: JwtPayload,
   ) {
-    return await this.appLogsService.findAll(user.company.id, paginationDTO);
+    const logs = await this.appLogsService.findAll(
+      user.company.id,
+      paginationDTO,
+    );
+
+    return successResponse(logs, 'logs successfully rescued');
   }
 }

@@ -12,6 +12,7 @@ import {
   HttpStatus,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { CatsService } from './cats.service';
 import { CreateCatDto } from './dto/create-cat.dto';
@@ -28,6 +29,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtPayload } from 'src/common/interfaces/jwt-payload.interfaces';
 import { PaginationDTO } from 'src/common/dto/pagination.dto';
 import { HasCompanyGuard } from 'src/common/guards/has-company.guard';
+import { successResponse } from 'src/common/helpers/response.helper';
 
 @UseGuards(HasCompanyGuard)
 @Controller('cats')
@@ -39,18 +41,31 @@ export class CatsController {
   @ApiConsumes('multipart/form-data')
   @ApiBearerAuth('jwt')
   @ApiForbiddenResponse({ description: 'user must belong to a company' })
-  @UseInterceptors(FileInterceptor('picture'))
+  @UseInterceptors(
+    FileInterceptor('picture', {
+      fileFilter: (req, file, cb) => {
+        const isImage = ['image/jpeg', 'image/png', 'image/webp'].includes(
+          file.mimetype,
+        );
+        if (!isImage)
+          return cb(new BadRequestException('only images are allowed'), false);
+        cb(null, true);
+      },
+    }),
+  )
   async create(
     @Body() createCatDto: CreateCatDto,
     @UploadedFile() picture: Express.Multer.File,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.catsService.create(
+    const cat = await this.catsService.create(
       createCatDto,
       picture,
       user.id,
       user.company.id,
     );
+
+    return successResponse(cat, 'successfully created cat');
   }
 
   @HttpCode(HttpStatus.OK)
@@ -62,13 +77,16 @@ export class CatsController {
     @CurrentUser() user: JwtPayload,
     @Query() paginationDTO: PaginationDTO,
   ) {
-    return await this.catsService.findAll(
+    const cats = await this.catsService.findAll(
       user.company.id,
       user.id,
       paginationDTO,
     );
+
+    return successResponse(cats, 'cats successfully rescued');
   }
 
+  //TODO - trocar TODOS os textos pra inglês
   @HttpCode(HttpStatus.OK)
   @Get(':id')
   @ApiBearerAuth('jwt')
@@ -76,7 +94,13 @@ export class CatsController {
   @ApiNotFoundResponse({ description: 'cat not found' })
   @ApiForbiddenResponse({ description: 'user must belong to a company' })
   async findOneById(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return await this.catsService.findOneById(+id, user.company.id, user.id);
+    const cat = await this.catsService.findOneById(
+      +id,
+      user.company.id,
+      user.id,
+    );
+
+    return successResponse(cat, 'cat successfully rescued');
   }
 
   //no final do projeto mudar para as respostas corretas
@@ -91,12 +115,14 @@ export class CatsController {
     @Body() updateCatDto: UpdateCatDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return await this.catsService.update(
+    const updatedCat = await this.catsService.update(
       +id,
       updateCatDto,
       user.company.id,
       user.id,
     );
+
+    return successResponse(updatedCat, 'cat updated successfully');
   }
 
   @HttpCode(HttpStatus.OK)
@@ -106,6 +132,14 @@ export class CatsController {
   @ApiNotFoundResponse({ description: 'cat not found' })
   @ApiForbiddenResponse({ description: 'user must belong to a company' })
   async softDelete(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.catsService.softDelete(+id, user.company.id, user.id);
+    const deletedCat = await this.catsService.softDelete(
+      +id,
+      user.company.id,
+      user.id,
+    );
+
+    return successResponse(deletedCat, 'cat deleted successfully');
   }
 }
+
+//TODO - criar job para apagar dados com deleted - colocar um 'deletedDate' nas entidades?
